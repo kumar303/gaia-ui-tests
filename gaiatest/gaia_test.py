@@ -101,6 +101,27 @@ class GaiaApps(object):
     def runningApps(self):
         return self.marionette.execute_script("return GaiaApps.getRunningApps()")
 
+    def get_installed(self):
+        self.marionette.switch_to_frame()
+        # Is this the right origin to call this from?
+        res = self.marionette.execute_async_script("""
+            var req = navigator.mozApps.getInstalled();
+            req.onsuccess = function _getInstalledSuccess() {
+                var apps = [];
+                for (var i=0; i < req.result.length; i++) {
+                    var ob = req.result[i];
+                    var app = {};
+                    // Make app objects JSONifiable.
+                    for (var k in ob) {
+                        app[k] = ob[k];
+                    }
+                    apps.push(app);
+                }
+                marionetteScriptFinished(apps);
+            };
+            """)
+        return res
+
     def switch_to_frame(self, app_frame, url=None, timeout=30):
         self.marionette.switch_to_frame(app_frame)
         start = time.time()
@@ -318,8 +339,7 @@ class GaiaTestCase(MarionetteTestCase):
         self.marionette.__class__ = type('Marionette', (Marionette, MarionetteTouchMixin), {})
 
         self.device = GaiaDevice(self.marionette)
-        if self.device.is_android_build:
-            self.device.restart_b2g()
+        self.setUpDevice()
 
         self.marionette.setup_touch()
 
@@ -337,6 +357,15 @@ class GaiaTestCase(MarionetteTestCase):
             self.marionette.execute_script('return window.navigator.mozWifiManager !== undefined')
 
         self.cleanUp()
+
+    def setUpDevice(self):
+        """
+        A hook to set up the device after it has been created.
+
+        By default, this will restart an Android device.
+        """
+        if self.device.is_android_build:
+            self.device.restart_b2g()
 
     def cleanUp(self):
         # remove media
